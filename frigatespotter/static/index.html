@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>FrigateSpotter</title>
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="static/styles.css">
 </head>
 <body>
   <header>
@@ -19,7 +19,7 @@
   <main>
     <section class="card" id="authCard" hidden>
       <h2>Access token</h2>
-      <p>This instance requires <code>SPOTTER_API_TOKEN</code>. The token is stored only in this browser.</p>
+      <p>This standalone instance requires <code>SPOTTER_API_TOKEN</code>. Home Assistant Ingress does not require a separate token.</p>
       <div class="row"><input id="apiToken" type="password" placeholder="Token"><button id="saveToken">Save</button></div>
     </section>
 
@@ -28,7 +28,7 @@
       <form id="ruleForm">
         <input id="ruleId" type="hidden">
         <div class="grid">
-          <label>Name<input id="name" placeholder="Gate spotter"></label>
+          <label>Name<input id="name" placeholder="Entry spotter"></label>
           <label>Source camera<select id="sourceCamera" required></select></label>
           <label>Zone<select id="sourceZone" required></select></label>
           <label>PTZ camera<select id="targetCamera" required></select></label>
@@ -56,6 +56,15 @@
   </main>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/static/app.js" defer></script>
+  <script>
+    // Home Assistant Ingress serves this page below a path prefix.
+    // Convert root-style API calls in the shared standalone UI into relative calls.
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      if (typeof input === "string" && input.startsWith("/api/")) input = input.slice(1);
+      return nativeFetch(input, init);
+    };
+  </script>
+  <script src="static/app.js" defer></script>
 </body>
 </html>
