@@ -1,0 +1,52 @@
+name: Privacy finalizer
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  finalize:
+    if: github.event.head_commit.message == 'Privacy-safe public root'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove earlier workflow run records
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for run_id in $(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?per_page=100" --jq '.workflow_runs[].id'); do
+            if [ "$run_id" != "$GITHUB_RUN_ID" ]; then
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" || true
+            fi
+          done
+
+      - name: Scan public tree for private identifiers
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/privacy-finalizer.yml
+          if grep -R -nEi 'kamera[0-9]|kamera_|portti|lurulude|lappius|@gmail\.com' . --exclude-dir=.git; then
+            echo "Private identifier found in candidate public tree"
+            exit 1
+          fi
+
+      - name: Publish final clean root
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "FrigateSpotter"
+          git config user.email "noreply@github.com"
+          git checkout --orphan final-public-root
+          git add -A
+          git commit -m "Initial public release"
+          git branch -M main
+          git push --force origin main
