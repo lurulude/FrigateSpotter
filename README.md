@@ -1,38 +1,188 @@
 # FrigateSpotter
 
-FrigateSpotter is an open-source PTZ routing and automation project for Frigate-based camera systems.
+FrigateSpotter routes Frigate object detections from any camera or zone to PTZ presets on any PTZ-capable camera discovered by Frigate.
 
-It is intended to discover Frigate cameras, zones, tracked object labels, PTZ-capable cameras, and available PTZ presets, then provide a simple interface for mapping detections to camera movements without hand-writing automation YAML.
-
-## Planned capabilities
-
-- Discover all Frigate cameras and zones.
-- Discover tracked object labels such as `person`, `dog`, and `cat`.
-- Discover PTZ-capable cameras and available presets/locations.
-- Map a source camera or zone to a destination PTZ camera and preset.
-- Support multiple trigger labels per rule.
-- Configure per-rule timeout behavior.
-- Extend a timeout while activity continues.
-- Return the PTZ camera to a configurable home preset when a rule clears or expires.
-- Support conflict and priority handling when multiple zones trigger the same PTZ camera.
-- Provide a test action for discovered PTZ presets.
-- Prefer standards-based integrations such as Frigate MQTT, Home Assistant, and ONVIF where practical.
-
-## Example
-
-A fixed camera detects a dog or person in a gate zone:
+It is designed for setups where fixed cameras act as **spotters** for one or more PTZ cameras. A typical rule is:
 
 ```text
 kamera5 / kamera5_portti / dog, person
                   ↓
 kamera4 / preset: portti
                   ↓
-return home after configured timeout or when the zone clears
+zone clears + 15 seconds
+                  ↓
+kamera4 / preset: home
 ```
+
+No Home Assistant automation YAML and no vendor-specific camera API are required for the normal path. FrigateSpotter uses Frigate's HTTP API for discovery and Frigate MQTT topics for tracked-object events and PTZ commands.
+
+## Features
+
+- Discovers **all Frigate cameras**.
+- Discovers zones for every camera.
+- Discovers tracked object labels configured in Frigate.
+- Probes every camera for ONVIF PTZ capabilities and preset names.
+- Routes a camera-wide or zone-specific detection to any discovered PTZ preset.
+- Supports multiple labels per rule, such as `dog` + `person`.
+- Per-rule timeout modes:
+  - **After zone clears**: wait until all matching objects leave, then start a delay.
+  - **Fixed timeout**: return after a fixed time; optionally extend on activity.
+  - **No automatic return**: leave the PTZ at the target preset.
+- Optional return/home preset.
+- Priorities when several spotter rules want the same PTZ camera.
+- Equal-priority rules use the most recent trigger.
+- Automatically resumes another active rule when a higher-priority rule releases the PTZ.
+- Test button for every selected PTZ preset.
+- Persistent JSON rule storage.
+- Optional bearer-token protection for the web/API interface.
+- MQTT authentication and TLS support.
+- Docker/Compose deployment, CI, and tagged GHCR publishing.
+
+## Requirements
+
+- Frigate with MQTT enabled.
+- Frigate HTTP API reachable from FrigateSpotter.
+- An MQTT broker reachable from FrigateSpotter.
+- For PTZ targets, ONVIF PTZ must be configured in Frigate and the camera must expose presets through Frigate.
+
+Frigate's internal port `5000` is the simplest API target on a trusted Docker/Home Assistant network. If you expose Frigate through its authenticated frontend instead, configure the appropriate API access for your environment.
+
+### Object labels
+
+FrigateSpotter only receives labels Frigate is already tracking. For dogs, make sure your Frigate config includes `dog`, for example:
+
+```yaml
+objects:
+  track:
+    - person
+    - dog
+```
+
+## Quick start with Docker Compose
+
+Clone the repository and edit `docker-compose.yml` for your network:
+
+```yaml
+services:
+  frigatespotter:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      FRIGATE_URL: http://frigate:5000
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_USERNAME: your-user
+      MQTT_PASSWORD: your-password
+      FRIGATE_TOPIC_PREFIX: frigate
+    volumes:
+      - ./data:/data
+```
+
+Then run:
+
+```bash
+docker compose up -d --build
+```
+
+Open `http://<host>:8080`.
+
+FrigateSpotter will discover cameras, zones, tracked labels, PTZ cameras and preset names. Create routing rules in the browser.
+
+## Your `kamera5_portti` example
+
+For the setup discussed during the initial design:
+
+| Setting | Value |
+| --- | --- |
+| Source camera | `kamera5` |
+| Zone | `kamera5_portti` |
+| Objects | `dog`, `person` |
+| PTZ camera | `kamera4` |
+| Target preset | `portti` |
+| Timeout mode | After zone clears |
+| Timeout | `15` seconds |
+| Return preset | your normal/home preset, if desired |
+
+When a dog or person is tracked inside `kamera5_portti`, FrigateSpotter sends `kamera4` to `portti`. When the last matching object leaves, the timeout starts. If activity returns before it expires, the return is cancelled.
+
+## Configuration
+
+Copy `.env.example` or set environment variables directly.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `FRIGATE_URL` | `http://frigate:5000` | Frigate base URL, without `/api`. |
+| `FRIGATE_API_TOKEN` | empty | Optional bearer token sent to the Frigate API. |
+| `FRIGATE_TOPIC_PREFIX` | `frigate` | Frigate MQTT topic prefix. |
+| `MQTT_HOST` | `mqtt` | MQTT broker hostname/IP. |
+| `MQTT_PORT` | `1883` | MQTT broker port. |
+| `MQTT_USERNAME` | empty | MQTT username. |
+| `MQTT_PASSWORD` | empty | MQTT password. |
+| `MQTT_TLS` | `false` | Enable MQTT TLS. |
+| `MQTT_CA_CERT` | empty | Optional CA certificate path for MQTT TLS. |
+| `MQTT_CLIENT_ID` | `frigatespotter` | MQTT client ID. |
+| `DATA_DIR` | `/data` | Persistent state directory. |
+| `SPOTTER_API_TOKEN` | empty | Optional bearer token protecting FrigateSpotter APIs. |
+| `LOG_LEVEL` | `INFO` | Python logging level. |
+
+If `SPOTTER_API_TOKEN` is set, the browser UI asks for it and stores it in that browser's local storage.
+
+## Frigate interfaces used
+
+FrigateSpotter intentionally relies on documented Frigate interfaces:
+
+- `GET /api/config` for cameras, zones, and tracked-object configuration.
+- `GET /api/<camera>/ptz/info` for PTZ features and preset names.
+- `<topic_prefix>/events` for tracked object updates, including camera, label, and `current_zones`.
+- `<topic_prefix>/<camera>/ptz` with payload `preset_<preset_name>` for PTZ preset movement.
+
+This keeps the application camera-vendor neutral. Reolink, Dahua, Amcrest, Hikvision, or other cameras can be targets when their ONVIF PTZ/presets work through Frigate.
+
+## Rule behavior
+
+### After zone clears
+
+This is the recommended mode for animal/person spotter rules. Every matching tracked-object ID is retained. The return timer starts only after the final matching object has left the zone or ended. New activity cancels the pending return.
+
+### Fixed timeout
+
+The timer begins when the PTZ route triggers. With **extend on activity**, Frigate event updates restart the timer. After a fixed timeout expires, updates from the same already-active object are suppressed until it clears; a newly entering matching object may trigger the route again.
+
+### Priorities
+
+Priorities are numeric. Higher numbers win. A high-priority rule can preempt a lower-priority rule using the same target PTZ camera. When the high-priority route clears, FrigateSpotter first looks for another active route before sending the camera to a return preset.
+
+## Data and security
+
+Rules are saved to `${DATA_DIR}/rules.json`. FrigateSpotter does **not** store camera credentials; PTZ control is delegated to Frigate.
+
+Camera systems are security-sensitive. Recommended deployment:
+
+- Keep FrigateSpotter, Frigate, and MQTT on a trusted network/VLAN.
+- Use MQTT authentication and TLS where appropriate.
+- Set `SPOTTER_API_TOKEN` if the web UI is accessible outside a trusted LAN.
+- Do not expose Frigate's unauthenticated internal API port directly to the Internet.
+
+See [SECURITY.md](SECURITY.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Development
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+pip install -e '.[dev]'
+pytest
+ruff check .
+python -m frigatespotter
+```
+
+The UI is served at `http://localhost:8080`.
 
 ## Project status
 
-FrigateSpotter is in early development. Interfaces and configuration formats may change before the first stable release.
+`0.1.0` is the first usable beta. The core discovery, routing, timeout, return, and conflict-management paths are implemented. Feedback from different Frigate/PTZ camera combinations is welcome.
 
 ## License
 
