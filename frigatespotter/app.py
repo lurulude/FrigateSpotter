@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
@@ -63,6 +63,15 @@ STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+@app.middleware("http")
+async def home_assistant_ingress_only(request: Request, call_next):
+    if settings.home_assistant_app and request.url.path != "/api/health":
+        client = request.client.host if request.client else ""
+        if client not in {"172.30.32.2", "127.0.0.1", "::1"}:
+            return PlainTextResponse("Home Assistant Ingress access only", status_code=403)
+    return await call_next(request)
+
+
 def require_token(authorization: str | None = Header(default=None)) -> None:
     if not settings.api_token:
         return
@@ -103,7 +112,7 @@ async def discovery(refresh: bool = False) -> Discovery:
             if state.discovery is None or refresh:
                 try:
                     state.discovery = await state.frigate.discover()
-                except Exception as exc:  # HTTP client errors are normalized for the UI.
+                except Exception as exc:
                     _LOGGER.exception("Frigate discovery failed")
                     raise HTTPException(
                         status_code=502, detail=f"Frigate discovery failed: {exc}"
@@ -160,4 +169,5 @@ async def client_config(request: Request) -> dict[str, Any]:
         "token_required": bool(settings.api_token),
         "topic_prefix": settings.topic_prefix,
         "frigate_url": settings.frigate_url,
+        "home_assistant_app": settings.home_assistant_app,
     }
