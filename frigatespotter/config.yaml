@@ -1,0 +1,48 @@
+name: FrigateSpotter
+version: "0.2.0"
+slug: frigatespotter
+description: Route Frigate camera and zone detections to PTZ presets.
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+stage: experimental
+ingress: true
+ingress_port: 8080
+panel_icon: mdi:cctv
+panel_title: FrigateSpotter
+panel_admin: true
+watchdog: http://[HOST]:[PORT:8080]/api/health
+hassio_api: true
+services:
+  - mqtt:want
+ports:
+  8080/tcp: null
+ports_description:
+  8080/tcp: Direct web access (disabled by default; use Ingress)
+backup: hot
+options:
+  frigate_url: auto
+  frigate_api_token: ""
+  mqtt_source: supervisor
+  mqtt_host: ""
+  mqtt_port: 1883
+  mqtt_username: ""
+  mqtt_password: ""
+  mqtt_tls: false
+  mqtt_ca_cert: ""
+  frigate_topic_prefix: frigate
+  log_level: INFO
+schema:
+  frigate_url: str
+  frigate_api_token: password
+  mqtt_source: list(supervisor|manual)
+  mqtt_host: str
+  mqtt_port: port
+  mqtt_username: str
+  mqtt_password: password
+  mqtt_tls: bool
+  mqtt_ca_cert: str
+  frigate_topic_prefix: str
+  log_level: list(DEBUG|INFO|WARNING|ERROR)

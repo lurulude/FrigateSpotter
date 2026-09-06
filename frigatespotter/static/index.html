@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>FrigateSpotter</title>
+  <link rel="stylesheet" href="static/styles.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>FrigateSpotter</h1>
+      <p>Route Frigate detections to PTZ presets.</p>
+    </div>
+    <div class="status"><span id="mqttDot" class="dot"></span><span id="statusText">Connecting…</span></div>
+  </header>
+
+  <main>
+    <section class="card" id="authCard" hidden>
+      <h2>Access token</h2>
+      <p>This standalone instance requires <code>SPOTTER_API_TOKEN</code>. Home Assistant Ingress does not require a separate token.</p>
+      <div class="row"><input id="apiToken" type="password" placeholder="Token"><button id="saveToken">Save</button></div>
+    </section>
+
+    <section class="card">
+      <div class="section-title"><div><h2>Routing rule</h2><p>Choose any Frigate camera/zone and send matching objects to any discovered PTZ preset.</p></div><button id="refreshDiscovery" class="secondary">Refresh discovery</button></div>
+      <form id="ruleForm">
+        <input id="ruleId" type="hidden">
+        <div class="grid">
+          <label>Name<input id="name" placeholder="Entry spotter"></label>
+          <label>Source camera<select id="sourceCamera" required></select></label>
+          <label>Zone<select id="sourceZone" required></select></label>
+          <label>PTZ camera<select id="targetCamera" required></select></label>
+          <label>Target preset<div class="inline"><select id="targetPreset" required></select><button id="testPreset" type="button" class="secondary">Test</button></div></label>
+          <label>Return preset<select id="returnPreset"></select></label>
+          <label>Timeout mode<select id="timeoutMode"><option value="after_clear">After zone clears</option><option value="fixed">Fixed timeout</option><option value="never">No automatic return</option></select></label>
+          <label>Timeout seconds<input id="timeoutSeconds" type="number" min="0" max="86400" value="15"></label>
+          <label>Priority<input id="priority" type="number" min="0" max="1000" value="50"></label>
+        </div>
+        <fieldset><legend>Objects</legend><div id="labels" class="checks"></div></fieldset>
+        <div class="checks options"><label><input id="enabled" type="checkbox" checked> Enabled</label><label><input id="extend" type="checkbox" checked> Extend fixed timeout on activity</label></div>
+        <div class="actions"><button type="submit">Save rule</button><button id="cancelEdit" type="button" class="secondary" hidden>Cancel edit</button></div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="section-title"><div><h2>Rules</h2><p id="ruleCount">0 rules</p></div></div>
+      <div id="rules" class="rules"></div>
+    </section>
+
+    <section class="card compact">
+      <h2>Runtime</h2>
+      <dl><div><dt>Last Frigate event</dt><dd id="lastEvent">—</dd></div><div><dt>Last PTZ action</dt><dd id="lastAction">—</dd></div></dl>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script>
+    // Home Assistant Ingress serves this page below a path prefix.
+    // Convert root-style API calls in the shared standalone UI into relative calls.
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      if (typeof input === "string" && input.startsWith("/api/")) input = input.slice(1);
+      return nativeFetch(input, init);
+    };
+  </script>
+  <script src="static/app.js" defer></script>
+</body>
+</html>

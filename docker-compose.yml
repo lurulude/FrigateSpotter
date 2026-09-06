@@ -1,0 +1,18 @@
+services:
+  frigatespotter:
+    build: .
+    image: frigatespotter:local
+    container_name: frigatespotter
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      FRIGATE_URL: http://frigate:5000
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      # MQTT_USERNAME: frigate
+      # MQTT_PASSWORD: change-me
+      # FRIGATE_TOPIC_PREFIX: frigate
+      # SPOTTER_API_TOKEN: use-a-long-random-token
+    volumes:
+      - ./data:/data
