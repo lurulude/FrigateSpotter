@@ -1,0 +1,36 @@
+configuration:
+  frigate_url:
+    name: Frigate URL
+    description: Use "auto" to discover an installed Frigate Home Assistant App, or enter a full Frigate base URL.
+  frigate_api_token:
+    name: Frigate API token
+    description: Optional bearer token for authenticated Frigate API access.
+  mqtt_source:
+    name: MQTT source
+    description: Use the Supervisor MQTT service automatically or enter broker details manually.
+  mqtt_host:
+    name: MQTT host
+    description: MQTT broker hostname or IP when MQTT source is manual.
+  mqtt_port:
+    name: MQTT port
+    description: MQTT broker port when MQTT source is manual.
+  mqtt_username:
+    name: MQTT username
+    description: MQTT username when MQTT source is manual.
+  mqtt_password:
+    name: MQTT password
+    description: MQTT password when MQTT source is manual.
+  mqtt_tls:
+    name: MQTT TLS
+    description: Enable TLS for a manually configured MQTT broker.
+  mqtt_ca_cert:
+    name: MQTT CA certificate
+    description: Optional CA certificate path inside the container for manual MQTT TLS.
+  frigate_topic_prefix:
+    name: Frigate MQTT topic prefix
+    description: MQTT topic prefix used by Frigate.
+  log_level:
+    name: Log level
+    description: Application logging verbosity.
+network:
+  8080/tcp: Direct web interface; disabled by default because Home Assistant Ingress is preferred.
